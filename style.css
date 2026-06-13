@@ -57,7 +57,7 @@ h2 { margin-top: 0; font-size: 1.3rem; border-bottom: 1px solid var(--border-col
     margin-bottom: 15px;
 }
 
-label { font-weight: bold; display: block; margin-bottom: 5px; }
+label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9rem; }
 
 .radio-btn-group {
     display: flex;
@@ -74,6 +74,7 @@ label { font-weight: bold; display: block; margin-bottom: 5px; }
     border: 1px solid transparent;
     transition: all 0.2s;
     font-weight: normal;
+    font-size: 0.85rem;
 }
 
 .radio-btn-group input[type="radio"] {
@@ -97,12 +98,13 @@ th, td {
     border: 1px solid var(--border-color);
     padding: 8px;
     text-align: center;
+    min-width: 45px;
 }
 
 th { background-color: #e9ecef; }
 
 input[type="number"] {
-    width: 50px;
+    width: 55px;
     padding: 4px;
     text-align: center;
     border: 1px solid var(--border-color);

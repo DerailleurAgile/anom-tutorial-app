@@ -18,6 +18,17 @@
             <div class="card">
                 <h2>1. Choose Operational Parameters</h2>
                 
+                <div class="dimension-controls" style="display: flex; gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 10px; border-radius: 6px;">
+                    <div style="flex: 1;">
+                        <label for="input-m">Number of Groups (m)</label>
+                        <input type="number" id="input-m" value="5" min="3" max="15" style="width: 100%; box-sizing: border-box; padding: 6px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="input-n">Observations per Group (n)</label>
+                        <input type="number" id="input-n" value="4" min="2" max="10" style="width: 100%; box-sizing: border-box; padding: 6px;">
+                    </div>
+                </div>
+                
                 <div class="control-group">
                     <label>ANOM Alpha (&alpha;) — Sensitivity for Treatment Means</label>
                     <div class="radio-btn-group">
@@ -48,23 +59,16 @@
             </div>
 
             <div class="card">
-                <h2>2. Experimental Data Inputs (m=5, n=4)</h2>
-                <p style="font-size: 0.85rem; color:#6c757d; margin-top:-5px;">Modify any value below to see the math adjust instantly.</p>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Group</th>
-                            <th>X1</th>
-                            <th>X2</th>
-                            <th>X3</th>
-                            <th>X4</th>
-                            <th>Mean (<span style="text-decoration: overline;">X</span>)</th>
-                            <th>Range (R)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-table-body">
-                    </tbody>
-                </table>
+                <h2>2. Experimental Data Inputs</h2>
+                <p style="font-size: 0.85rem; color:#6c757d; margin-top:-5px;">Modify grid dimensions above or tweak cell values below to recalculate charts instantly.</p>
+                <div style="overflow-x: auto;">
+                    <table id="dynamic-table">
+                        <thead id="data-table-head">
+                            </thead>
+                        <tbody id="data-table-body">
+                            </tbody>
+                    </table>
+                </div>
                 
                 <div style="margin-top: 15px; font-weight: bold; font-size: 0.95rem;">
                     Grand Mean (<span style="text-decoration: overline;"><span style="text-decoration: overline;">X</span></span>): <span id="grand-mean-val">0</span> | 
@@ -76,8 +80,7 @@
         <div>
             <div class="card">
                 <h2>3. Analysis of Means (ANOM)</h2>
-                <div class="math-box" id="anom-math">
-                </div>
+                <div class="math-box" id="anom-math"></div>
                 <div class="chart-container">
                     <div class="chart-title">ANOM Chart (Treatment Performance)</div>
                     <div class="canvas-wrap"><canvas id="anomChart"></canvas></div>
@@ -87,8 +90,7 @@
 
             <div class="card">
                 <h2>4. Analysis of Ranges (ANOR)</h2>
-                <div class="math-box" id="anor-math">
-                </div>
+                <div class="math-box" id="anor-math"></div>
                 <div class="chart-container">
                     <div class="chart-title">ANOR Chart (Within-Group Uniformity)</div>
                     <div class="canvas-wrap"><canvas id="anorChart"></canvas></div>
@@ -98,5 +100,6 @@
         </div>
     </div>
 </div>
+<script src="script.js"></script>
 </body>
 </html>
