@@ -298,3 +298,95 @@ window.addEventListener('resize', calculateAndRender);
 // Boostrap sequence
 syncDimensionsAndRegen();
 loadConstantsCatalog();
+
+// External Clipboard Data Import Engine Configurations
+const importModal = document.getElementById('import-modal');
+const openImportBtn = document.getElementById('open-import-btn');
+const closeImportBtn = document.getElementById('close-import-btn');
+const processImportBtn = document.getElementById('process-import-btn');
+const pastedRawText = document.getElementById('pasted-raw-text');
+
+// Manage Modal View States
+if (openImportBtn) {
+    openImportBtn.addEventListener('click', () => {
+        pastedRawText.value = '';
+        importModal.style.display = 'flex';
+    });
+}
+if (closeImportBtn) {
+    closeImportBtn.addEventListener('click', () => {
+        importModal.style.display = 'none';
+    });
+}
+
+// Intercept window clicks to dim backdrop closures safely
+window.addEventListener('click', (e) => {
+    if (e.target === importModal) {
+        importModal.style.display = 'none';
+    }
+});
+
+// Clipboard Parsing Engine Logic
+if (processImportBtn) {
+    processImportBtn.addEventListener('click', () => {
+        const rawContent = pastedRawText.value.trim();
+        if (!rawContent) {
+            alert("No text detected. Please paste your spreadsheet data before processing.");
+            return;
+        }
+
+        const lines = rawContent.split(/\r?\n/);
+        let validMetricsCollection = [];
+
+        lines.forEach(line => {
+            // Split rows by standard spreadsheet tabs or multiple space sequences
+            const tokens = line.trim().split(/\t| {2,}/);
+            if (tokens.length === 0) return;
+
+            // Target the last column tokens containing the raw data metrics
+            const potentialNumericToken = tokens[tokens.length - 1].trim();
+            const isolatedValue = parseFloat(potentialNumericToken);
+
+            // Strip text layout headers and collect pure numeric values
+            if (!isNaN(isolatedValue)) {
+                validMetricsCollection.push(isolatedValue);
+            }
+        });
+
+        if (validMetricsCollection.length < 2) {
+            alert("Failed to parse numerical metrics. Ensure columns are structured with numbers on the right margin.");
+            return;
+        }
+
+        // Chunking the array using your layout parameter context (n columns per group)
+        let customGrid = [];
+        for (let i = 0; i < validMetricsCollection.length; i += n) {
+            let chunk = validMetricsCollection.slice(i, i + n);
+            
+            // Padding strategy: if the final quarter line leaves a matrix row incomplete,
+            // pad the empty cells with the final available metric value to preserve variance stability.
+            while (chunk.length < n) {
+                chunk.push(chunk[chunk.length - 1]);
+            }
+            customGrid.push(chunk);
+        }
+
+        // Dynamically shift global parameter settings to hold the custom parsed data footprint
+        m = customGrid.length;
+        rawData = customGrid;
+
+        // Update analytical text displays or structural headers if elements exist
+        const mLabel = document.getElementById('input-m');
+        const nLabel = document.getElementById('input-n');
+        if (mLabel) mLabel.value = m;
+        if (nLabel) nLabel.value = n;
+
+        // Rebuild DOM and push calculation updates
+        renderHeaders();
+        initTable();
+        
+        // Hide overlay safely
+        importModal.style.display = 'none';
+        console.log(`Successfully mapped matrix from spreadsheet! Processed ${validMetricsCollection.length} points into ${m} groups.`);
+    });
+}
