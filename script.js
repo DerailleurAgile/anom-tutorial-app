@@ -3,6 +3,7 @@
 let m = 5; 
 let n = 4; 
 let rawData = [];
+let globalLabels = []; // Dynamic store for extracted spreadsheet row labels
 let wheelerBookCatalog = null;
 
 // Locked case study data from the article
@@ -33,39 +34,42 @@ async function loadConstantsCatalog() {
 function getScalingFactors(currentM, currentN, alpha, type) {
     if (wheelerBookCatalog) {
         const chartTable = wheelerBookCatalog[type];
-        const alphaTable = chartTable ? chartTable[alpha] : null;
+        const alphaKey = alpha; 
+        const altAlphaKey = String(parseFloat(alpha) * 100);
+        const alphaTable = chartTable ? (chartTable[alphaKey] || chartTable[altAlphaKey]) : null;
         const mKey = `m${currentM}`;
         
         if (alphaTable && alphaTable[mKey] && alphaTable[mKey][currentN]) {
-            return wheelerBookCatalog[type][alpha][mKey][currentN];
+            return alphaTable[mKey][currentN];
         }
     }
-    
-    // Strict fallback values if file isn't loaded yet or sizes exceed table boundaries
     return type === 'ANOM' ? 0.540 : 1.991;
 }
 
 function syncDimensionsAndRegen() {
-    m = parseInt(document.getElementById('input-m').value) || 5;
-    n = parseInt(document.getElementById('input-n').value) || 4;
+    const mInput = document.getElementById('input-m');
+    const nInput = document.getElementById('input-n');
+    
+    m = mInput ? (parseInt(mInput.value) || 5) : 5;
+    n = nInput ? (parseInt(nInput.value) || 4) : 4;
     
     rawData = [];
+    globalLabels = [];
+    
     for (let i = 0; i < m; i++) {
-        let row = [];
-        // If within bounds of your sample data, preserve it exactly
+        globalLabels.push(`G${i + 1}`); // Default dynamic generic labels
+        const row = [];
         if (i < COATING_BASELINES.length) {
-            let originalRow = COATING_BASELINES[i];
+            const originalRow = COATING_BASELINES[i];
             for (let j = 0; j < n; j++) {
                 if (j < originalRow.length) {
                     row.push(originalRow[j]);
                 } else {
-                    // Smooth padding if columns scale out
                     row.push(originalRow[originalRow.length - 1] + (j % 2 === 0 ? 10 : -10));
                 }
             }
         } else {
-            // Smooth extrapolation if rows scale beyond 5 groups
-            let fallbackBase = [260, 290, 240, 310];
+            const fallbackBase = [260, 290, 240, 310];
             for (let j = 0; j < n; j++) {
                 row.push(fallbackBase[j % fallbackBase.length] + (i * 2));
             }
@@ -81,23 +85,23 @@ function renderHeaders() {
     const thead = document.getElementById('data-table-head');
     if (!thead) return;
     thead.innerHTML = '';
-    let tr = document.createElement('tr');
+    const tr = document.createElement('tr');
     
-    let thGroup = document.createElement('th');
+    const thGroup = document.createElement('th');
     thGroup.innerText = 'Group';
     tr.appendChild(thGroup);
     
     for (let j = 1; j <= n; j++) {
-        let th = document.createElement('th');
+        const th = document.createElement('th');
         th.innerText = `X${j}`;
         tr.appendChild(th);
     }
     
-    let thMean = document.createElement('th');
+    const thMean = document.createElement('th');
     thMean.innerHTML = 'Mean (<span style="text-decoration: overline;">X</span>)';
     tr.appendChild(thMean);
     
-    let thRange = document.createElement('th');
+    const thRange = document.createElement('th');
     thRange.innerText = 'Range (R)';
     tr.appendChild(thRange);
     
@@ -108,15 +112,19 @@ function initTable() {
     const tbody = document.getElementById('data-table-body');
     if (!tbody) return;
     tbody.innerHTML = '';
+    
     rawData.forEach((row, gIdx) => {
-        let tr = document.createElement('tr');
-        let labelTd = document.createElement('td');
-        labelTd.innerHTML = `<b>G${gIdx + 1}</b>`;
+        const tr = document.createElement('tr');
+        const labelTd = document.createElement('td');
+        
+        // Render explicit text label if available, otherwise fall back to row sequence
+        const currentLabel = globalLabels[gIdx] || `G${gIdx + 1}`;
+        labelTd.innerHTML = `<b>${currentLabel}</b>`;
         tr.appendChild(labelTd);
 
         row.forEach((val, rIdx) => {
-            let td = document.createElement('td');
-            let input = document.createElement('input');
+            const td = document.createElement('td');
+            const input = document.createElement('input');
             input.type = 'number';
             input.value = val;
             input.oninput = (e) => {
@@ -127,9 +135,9 @@ function initTable() {
             tr.appendChild(td);
         });
 
-        let meanTd = document.createElement('td');
+        const meanTd = document.createElement('td');
         meanTd.id = `mean-g${gIdx}`;
-        let rangeTd = document.createElement('td');
+        const rangeTd = document.createElement('td');
         rangeTd.id = `range-g${gIdx}`;
         
         tr.appendChild(meanTd);
@@ -142,13 +150,10 @@ function initTable() {
 function calculateAndRender() {
     if (rawData.length === 0) return;
     
-    // Arrays are mutated via .push(), but the array references themselves 
-    // never change, so these are strictly const.
     const groupMeans = [];
     const groupRanges = [];
     
     rawData.forEach((row, idx) => {
-        // All internal row calculations are immediate, scoped constants
         const sum = row.reduce((a, b) => a + b, 0);
         const avg = sum / row.length;
         const min = Math.min(...row);
@@ -229,8 +234,7 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
     const h = rect.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Collect all bounding values to establish strict data ranges
-    let allValues = [...points, center, udl];
+    const allValues = [...points, center, udl];
     if (mode === "Mean") {
         allValues.push(ldl);
     }
@@ -238,25 +242,23 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
     let maxVal = Math.max(...allValues);
     let minVal = mode === "Range" ? 0 : Math.min(...allValues);
     
-    // Add a balanced 15% padding cushion to prevent point clipping at graph edges
-    let span = maxVal - minVal;
-    if (span === 0) span = 1; // Safeguard against zero variance
-    maxVal += span * 0.15;
+    const span = maxVal - minVal;
+    const paddingMultiplier = span === 0 ? 1 : span * 0.15;
+    maxVal += paddingMultiplier;
     if (mode === "Mean") {
-        minVal -= span * 0.15;
+        minVal -= paddingMultiplier;
     }
 
-    // Determine decimal precision based on data scale
     const decimalPlaces = Math.abs(maxVal) < 10 ? 3 : 1;
 
-    // Set layout dimensions: widen left margin to fit numeric text strings cleanly
+    // Expand bottom padding room to 45px to comfortably fit skewed text ranges
     const paddingLeft = 55;
-    const paddingRight = 20;
+    const paddingRight = 35;
     const paddingTop = 15;
-    const paddingBottom = 25;
+    const paddingBottom = 45;
 
     function getY(val) {
-        return h - paddingBottom - ((val - minVal) / (maxVal - minVal)) * (h - paddingTop - paddingBottom);
+        return h - paddingBottom - ((val - minVal) / ((maxVal - minVal) || 1)) * (h - paddingTop - paddingBottom);
     }
 
     function getX(idx) {
@@ -271,33 +273,26 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
 
-    // Draw main vertical axis line
     ctx.beginPath();
     ctx.moveTo(paddingLeft, paddingTop);
     ctx.lineTo(paddingLeft, h - paddingBottom);
     ctx.stroke();
 
-    // Generate 4 structured step intervals along the Y scale
     const tickCount = 4;
     for (let i = 0; i <= tickCount; i++) {
-        let tickVal = minVal + (i / tickCount) * (maxVal - minVal);
-        let yPos = getY(tickVal);
-
-        // Axis tick indicator notch
+        const tickVal = minVal + (i / tickCount) * (maxVal - minVal);
+        const yPos = getY(tickVal);
         ctx.beginPath();
         ctx.moveTo(paddingLeft - 4, yPos);
         ctx.lineTo(paddingLeft, yPos);
         ctx.stroke();
-
-        // Print aligned value label string
         ctx.fillText(tickVal.toFixed(decimalPlaces), paddingLeft - 8, yPos);
     }
 
-    // --- 2. DRAW STATISTICAL BENCHMARKS (Center, UDL, LDL) ---
+    // --- 2. DRAW STATISTICAL BENCHMARKS ---
     ctx.lineWidth = 1.5;
     ctx.textAlign = 'left';
     
-    // Center Line (R̄ or X̿)
     ctx.strokeStyle = '#6c757d';
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
@@ -307,7 +302,6 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
     ctx.fillStyle = '#6c757d';
     ctx.fillText(mode === "Range" ? " R̄" : " X̿", w - paddingRight, getY(center));
 
-    // Upper Decision Limit (UDL)
     ctx.strokeStyle = '#dc3545';
     ctx.setLineDash([]);
     ctx.beginPath();
@@ -317,7 +311,6 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
     ctx.fillStyle = '#dc3545';
     ctx.fillText(" UDL", w - paddingRight, getY(udl));
 
-    // Lower Decision Limit (LDL) for Mean Analysis
     if (mode === "Mean") {
         ctx.strokeStyle = '#dc3545';
         ctx.beginPath();
@@ -339,21 +332,30 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
     });
     ctx.stroke();
 
-    // Render group points and attach sequential dynamic X labels
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    
     points.forEach((pt, idx) => {
-        let isOut = pt > udl || (mode === "Mean" && pt < ldl);
+        const isOut = pt > udl || (mode === "Mean" && pt < ldl);
         ctx.fillStyle = isOut ? '#dc3545' : '#0d6efd';
         ctx.beginPath();
         ctx.arc(getX(idx), getY(pt), isOut ? 5 : 3.5, 0, Math.PI * 2);
         ctx.fill();
         
-        // Horizontal group identifiers (G1, G2, etc.) along the floor margin
+        // --- 4. RENDER ROTATED X-AXIS LABELS ---
+        ctx.save();
+        const labelX = getX(idx);
+        const labelY = h - paddingBottom + 8;
+        
+        // Translate transformations origin straight to the tick mark coordinate point
+        ctx.translate(labelX, labelY);
+        ctx.rotate((45 * Math.PI) / 180); // Rotate 45° clockwise
+        
         ctx.fillStyle = '#212529';
         ctx.font = '9px Arial';
-        ctx.fillText(`G${idx + 1}`, getX(idx), h - paddingBottom + 6);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        
+        const currentLabel = globalLabels[idx] || `G${idx + 1}`;
+        ctx.fillText(currentLabel, 0, 0);
+        ctx.restore();
     });
 }
 
@@ -364,18 +366,13 @@ document.querySelectorAll('input[name="anom_alpha"]').forEach(r => r.addEventLis
 document.querySelectorAll('input[name="anor_alpha"]').forEach(r => r.addEventListener('change', calculateAndRender));
 window.addEventListener('resize', calculateAndRender);
 
-// Boostrap sequence
-syncDimensionsAndRegen();
-loadConstantsCatalog();
-
-// External Clipboard Data Import Engine Configurations
+// Clipboard Data Import Logic
 const importModal = document.getElementById('import-modal');
 const openImportBtn = document.getElementById('open-import-btn');
 const closeImportBtn = document.getElementById('close-import-btn');
 const processImportBtn = document.getElementById('process-import-btn');
 const pastedRawText = document.getElementById('pasted-raw-text');
 
-// Manage Modal View States
 if (openImportBtn) {
     openImportBtn.addEventListener('click', () => {
         pastedRawText.value = '';
@@ -387,15 +384,12 @@ if (closeImportBtn) {
         importModal.style.display = 'none';
     });
 }
-
-// Intercept window clicks to dim backdrop closures safely
 window.addEventListener('click', (e) => {
     if (e.target === importModal) {
         importModal.style.display = 'none';
     }
 });
 
-// Clipboard Parsing Engine Logic
 if (processImportBtn) {
     processImportBtn.addEventListener('click', () => {
         const rawContent = pastedRawText.value.trim();
@@ -405,20 +399,29 @@ if (processImportBtn) {
         }
 
         const lines = rawContent.split(/\r?\n/);
-        let validMetricsCollection = [];
+        const validMetricsCollection = [];
+        const parsedLabelsCollection = [];
 
         lines.forEach(line => {
-            // Split rows by standard spreadsheet tabs or multiple space sequences
             const tokens = line.trim().split(/\t| {2,}/);
-            if (tokens.length === 0) return;
+            if (tokens.length === 0 || line.trim() === "") return;
 
-            // Target the last column tokens containing the raw data metrics
-            const potentialNumericToken = tokens[tokens.length - 1].trim();
-            const isolatedValue = parseFloat(potentialNumericToken);
+            if (tokens.length >= 2) {
+                // Two-column layout detected: Extract Column 1 as name label, Column 2 as quantitative metric
+                const labelToken = tokens[0].trim();
+                const numericToken = tokens[tokens.length - 1].trim();
+                const isolatedValue = parseFloat(numericToken);
 
-            // Strip text layout headers and collect pure numeric values
-            if (!isNaN(isolatedValue)) {
-                validMetricsCollection.push(isolatedValue);
+                if (!isNaN(isolatedValue)) {
+                    validMetricsCollection.push(isolatedValue);
+                    parsedLabelsCollection.push(labelToken);
+                }
+            } else if (tokens.length === 1) {
+                // Single column continuous metric layout fallback
+                const isolatedValue = parseFloat(tokens[0].trim());
+                if (!isNaN(isolatedValue)) {
+                    validMetricsCollection.push(isolatedValue);
+                }
             }
         });
 
@@ -427,35 +430,43 @@ if (processImportBtn) {
             return;
         }
 
-        // Chunking the array using your layout parameter context (n columns per group)
-        let customGrid = [];
+        // Partition numbers into subgroups based on workspace sizing parameter (n)
+        const customGrid = [];
+        const dynamicGroupLabels = [];
+        
         for (let i = 0; i < validMetricsCollection.length; i += n) {
-            let chunk = validMetricsCollection.slice(i, i + n);
-            
-            // Padding strategy: if the final quarter line leaves a matrix row incomplete,
-            // pad the empty cells with the final available metric value to preserve variance stability.
+            const chunk = validMetricsCollection.slice(i, i + n);
             while (chunk.length < n) {
                 chunk.push(chunk[chunk.length - 1]);
             }
             customGrid.push(chunk);
+
+            // Assign label configuration: Use the first row cell's label descriptor
+            // or fall back to generic index strings if labels are empty
+            if (parsedLabelsCollection.length > i) {
+                dynamicGroupLabels.push(parsedLabelsCollection[i]);
+            } else {
+                dynamicGroupLabels.push(`G${customGrid.length}`);
+            }
         }
 
-        // Dynamically shift global parameter settings to hold the custom parsed data footprint
         m = customGrid.length;
         rawData = customGrid;
+        globalLabels = dynamicGroupLabels;
 
-        // Update analytical text displays or structural headers if elements exist
         const mLabel = document.getElementById('input-m');
         const nLabel = document.getElementById('input-n');
         if (mLabel) mLabel.value = m;
         if (nLabel) nLabel.value = n;
 
-        // Rebuild DOM and push calculation updates
         renderHeaders();
         initTable();
         
-        // Hide overlay safely
         importModal.style.display = 'none';
-        console.log(`Successfully mapped matrix from spreadsheet! Processed ${validMetricsCollection.length} points into ${m} groups.`);
+        console.log(`Successfully mapped matrix with labels! Processed ${validMetricsCollection.length} points into ${m} groups.`);
     });
 }
+
+// Bootstrap initialization sequence
+syncDimensionsAndRegen();
+loadConstantsCatalog();
