@@ -1,17 +1,15 @@
 import pandas as pd
 import json
 
-# Path to your Dr. Wheeler constants workbook
 file_path = "scaling-factors.xlsx"
 excel_file = pd.ExcelFile(file_path)
 
-# Initialize a unified catalog structure for both chart types
 constants_catalog = {
     "ANOM": {},
     "ANOR": {}
 }
 
-# Mapping exact Excel tab configurations to target structures
+# Standard explicit targets
 sheet_mapping = {
     "anom-10": ("ANOM", "0.10"),
     "anom-5":  ("ANOM", "0.05"),
@@ -21,40 +19,55 @@ sheet_mapping = {
     "anor-1":  ("ANOR", "0.01")
 }
 
-for sheet_name, (chart_type, alpha) in sheet_mapping.items():
-    if sheet_name in excel_file.sheet_names:
-        # Read sheet, using the first column (k/m groups) as the row index
-        df = pd.read_excel(file_path, sheet_name=sheet_name)
+# Clean sheet lookup index to defend against invisible whitespace
+normalized_sheets = {name.strip().lower().replace('_', '-'): name for name in excel_file.sheet_names}
+
+for target_name, (chart_type, alpha) in sheet_mapping.items():
+    # Defensive alignment checks
+    lookup_key = target_name.lower()
+    alt_lookup_key = target_name.replace("-", "").lower() # catches 'anor10'
+    
+    actual_sheet_name = normalized_sheets.get(lookup_key) or normalized_sheets.get(alt_lookup_key)
+    
+    if actual_sheet_name:
+        print(f"Processing Sheet: '{actual_sheet_name}' -> Target: {chart_type} ({alpha})")
+        df = pd.read_excel(file_path, sheet_name=actual_sheet_name)
         
-        # Ensure the row label column (k or m) is treated as the matrix index
+        # Enforce treating index 0 explicitly as row headers
         df.set_index(df.columns[0], inplace=True)
         
-        # Initialize alpha level bucket if it doesn't exist yet
         if alpha not in constants_catalog[chart_type]:
             constants_catalog[chart_type][alpha] = {}
             
+        row_count = 0
         for k_val in df.index:
-            # Skip empty or text summary rows if any exist in the spreadsheet margins
-            if pd.isna(k_val) or not str(k_val).strip().isdigit():
+            if pd.isna(k_val):
+                continue
+            
+            # Clean string conversions if index is stored as text vs raw int
+            k_str = str(k_val).strip().split('.')[0] 
+            if not k_str.isdigit():
                 continue
                 
-            m_key = f"m{int(k_val)}"
+            m_key = f"m{k_str}"
             constants_catalog[chart_type][alpha][m_key] = {}
+            row_count += 1
             
             for col in df.columns:
-                # Strip text prefixes from column headers (e.g., 'n4' or ' n = 4 ' -> '4')
                 n_key = "".join(filter(str.isdigit, str(col)))
-                
                 if n_key:
                     val = df.loc[k_val, col]
                     if pd.notna(val):
                         constants_catalog[chart_type][alpha][m_key][n_key] = float(val)
+                        
+        print(f"   Successfully compiled {row_count} data matrices for {target_name}.")
     else:
-        print(f"Warning: Expected sheet '{sheet_name}' was not discovered in the workbook.")
+        print(f"❌ CRITICAL ERROR: Could not locate tab structure for '{target_name}' in workbook.")
+        print(f"   Available sheets found: {excel_file.sheet_names}")
 
-# Output the catalog as a pristine JSON module ready for copy-pasting into script.js
+# Regenerate catalog file
 output_filename = "anom_anor_constants.json"
 with open(output_filename, 'w') as f:
     json.dump(constants_catalog, f, indent=2)
 
-print(f"Success! Exact constants successfully compiled and saved to {output_filename}")
+print(f"\nMatrix rebuild complete! Saved file to: {output_filename}")
