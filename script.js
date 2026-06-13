@@ -142,55 +142,58 @@ function initTable() {
 function calculateAndRender() {
     if (rawData.length === 0) return;
     
-    let groupMeans = [];
-    let groupRanges = [];
+    // Arrays are mutated via .push(), but the array references themselves 
+    // never change, so these are strictly const.
+    const groupMeans = [];
+    const groupRanges = [];
     
     rawData.forEach((row, idx) => {
-        let sum = row.reduce((a, b) => a + b, 0);
-        let avg = sum / row.length;
-        let min = Math.min(...row);
-        let max = Math.max(...row);
-        let range = max - min;
+        // All internal row calculations are immediate, scoped constants
+        const sum = row.reduce((a, b) => a + b, 0);
+        const avg = sum / row.length;
+        const min = Math.min(...row);
+        const max = Math.max(...row);
+        const range = max - min;
         
         groupMeans.push(avg);
         groupRanges.push(range);
 
-        let mElement = document.getElementById(`mean-g${idx}`);
-        let rElement = document.getElementById(`range-g${idx}`);
-        if(mElement) mElement.innerText = avg.toFixed(2);
-        if(rElement) rElement.innerText = range;
+        const mElement = document.getElementById(`mean-g${idx}`);
+        const rElement = document.getElementById(`range-g${idx}`);
+        if (mElement) mElement.innerText = avg.toFixed(2);
+        if (rElement) rElement.innerText = range.toFixed(4);
     });
 
-    let grandMean = groupMeans.reduce((a,b)=>a+b,0) / groupMeans.length;
-    let avgRange = groupRanges.reduce((a,b)=>a+b,0) / groupRanges.length;
+    const grandMean = groupMeans.reduce((a, b) => a + b, 0) / groupMeans.length;
+    const avgRange = groupRanges.reduce((a, b) => a + b, 0) / groupRanges.length;
 
     document.getElementById('grand-mean-val').innerText = grandMean.toFixed(2);
-    document.getElementById('avg-range-val').innerText = avgRange.toFixed(2);
+    document.getElementById('avg-range-val').innerText = avgRange.toFixed(4);
 
-    let anomAlpha = document.querySelector('input[name="anom_alpha"]:checked').value;
-    let anorAlpha = document.querySelector('input[name="anor_alpha"]:checked').value;
+    const anomAlpha = document.querySelector('input[name="anom_alpha"]:checked').value;
+    const anorAlpha = document.querySelector('input[name="anor_alpha"]:checked').value;
 
-    let h_alpha = getScalingFactors(m, n, anomAlpha, 'ANOM');
-    let D_alpha = getScalingFactors(m, n, anorAlpha, 'ANOR');
+    const h_alpha = getScalingFactors(m, n, anomAlpha, 'ANOM');
+    const D_alpha = getScalingFactors(m, n, anorAlpha, 'ANOR');
 
-    let anor_UDL = D_alpha * avgRange;
-    let anom_delta = h_alpha * avgRange;
-    let anom_UDL = grandMean + anom_delta;
-    let anom_LDL = grandMean - anom_delta;
+    const anor_UDL = D_alpha * avgRange;
+    const anom_delta = h_alpha * avgRange;
+    const anom_UDL = grandMean + anom_delta;
+    const anom_LDL = grandMean - anom_delta;
 
     document.getElementById('anor-math').innerHTML = 
         `UDL = ANOR<sub>&alpha;</sub> * R̄<br>` +
-        `UDL = ${D_alpha.toFixed(3)} * ${avgRange.toFixed(2)} = <b>${anor_UDL.toFixed(2)}</b>`;
+        `UDL = ${D_alpha.toFixed(3)} * ${avgRange.toFixed(4)} = <b>${anor_UDL.toFixed(4)}</b>`;
 
     document.getElementById('anom-math').innerHTML = 
         `Limits = X̿ &plusmn; (ANOM<sub>&alpha;</sub> * R̄)<br>` +
-        `Limits = ${grandMean.toFixed(2)} &plusmn; (${h_alpha.toFixed(3)} * ${avgRange.toFixed(2)}) = <b>${anom_LDL.toFixed(2)} to ${anom_UDL.toFixed(2)}</b>`;
+        `Limits = ${grandMean.toFixed(2)} &plusmn; (${h_alpha.toFixed(3)} * ${avgRange.toFixed(4)}) = <b>${anom_LDL.toFixed(4)} to ${anom_UDL.toFixed(4)}</b>`;
 
-    let rangeSignal = groupRanges.some(r => r > anor_UDL);
-    let meanSignal = groupMeans.some(m => m > anom_UDL || m < anom_LDL);
+    const rangeSignal = groupRanges.some(r => r > anor_UDL);
+    const meanSignal = groupMeans.some(m => m > anom_UDL || m < anom_LDL);
 
-    let anorAlert = document.getElementById('anor-alert');
-    if(rangeSignal) {
+    const anorAlert = document.getElementById('anor-alert');
+    if (rangeSignal) {
         anorAlert.className = "alert-zone alert-danger";
         anorAlert.innerText = "⚠️ SIGNAL DETECTED: Within-group variance is uneven! This inflates R̄ and desensitizes the ANOM limits.";
     } else {
@@ -198,8 +201,8 @@ function calculateAndRender() {
         anorAlert.innerText = "✓ Within-group variance is stable. The baseline R̄ is robust.";
     }
 
-    let anomAlert = document.getElementById('anom-alert');
-    if(meanSignal) {
+    const anomAlert = document.getElementById('anom-alert');
+    if (meanSignal) {
         anomAlert.className = "alert-zone alert-success";
         anomAlert.innerText = "🎯 SIGNAL DETECTED: Significant differences found across treatment means!";
     } else {
@@ -224,67 +227,133 @@ function drawChart(canvasId, points, center, udl, ldl, mode) {
 
     const w = rect.width;
     const h = rect.height;
-    ctx.clearRect(0,0, w, h);
+    ctx.clearRect(0, 0, w, h);
 
-    let allValues = [...points, center, udl, ldl];
-    let maxVal = Math.max(...allValues) * 1.15;
-    let minVal = mode === "Range" ? 0 : Math.min(...allValues) * 0.85;
+    // Collect all bounding values to establish strict data ranges
+    let allValues = [...points, center, udl];
+    if (mode === "Mean") {
+        allValues.push(ldl);
+    }
+    
+    let maxVal = Math.max(...allValues);
+    let minVal = mode === "Range" ? 0 : Math.min(...allValues);
+    
+    // Add a balanced 15% padding cushion to prevent point clipping at graph edges
+    let span = maxVal - minVal;
+    if (span === 0) span = 1; // Safeguard against zero variance
+    maxVal += span * 0.15;
+    if (mode === "Mean") {
+        minVal -= span * 0.15;
+    }
+
+    // Determine decimal precision based on data scale
+    const decimalPlaces = Math.abs(maxVal) < 10 ? 3 : 1;
+
+    // Set layout dimensions: widen left margin to fit numeric text strings cleanly
+    const paddingLeft = 55;
+    const paddingRight = 20;
+    const paddingTop = 15;
+    const paddingBottom = 25;
 
     function getY(val) {
-        return h - 20 - ((val - minVal) / (maxVal - minVal)) * (h - 35);
+        return h - paddingBottom - ((val - minVal) / (maxVal - minVal)) * (h - paddingTop - paddingBottom);
     }
 
     function getX(idx) {
-        return 40 + (idx / (points.length - 1 || 1)) * (w - 70);
+        return paddingLeft + (idx / (points.length - 1 || 1)) * (w - paddingLeft - paddingRight);
     }
 
+    // --- 1. DRAW Y-AXIS SCALE & TICK MARKS ---
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#212529';
+    ctx.fillStyle = '#212529';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    // Draw main vertical axis line
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, paddingTop);
+    ctx.lineTo(paddingLeft, h - paddingBottom);
+    ctx.stroke();
+
+    // Generate 4 structured step intervals along the Y scale
+    const tickCount = 4;
+    for (let i = 0; i <= tickCount; i++) {
+        let tickVal = minVal + (i / tickCount) * (maxVal - minVal);
+        let yPos = getY(tickVal);
+
+        // Axis tick indicator notch
+        ctx.beginPath();
+        ctx.moveTo(paddingLeft - 4, yPos);
+        ctx.lineTo(paddingLeft, yPos);
+        ctx.stroke();
+
+        // Print aligned value label string
+        ctx.fillText(tickVal.toFixed(decimalPlaces), paddingLeft - 8, yPos);
+    }
+
+    // --- 2. DRAW STATISTICAL BENCHMARKS (Center, UDL, LDL) ---
     ctx.lineWidth = 1.5;
+    ctx.textAlign = 'left';
     
+    // Center Line (R̄ or X̿)
     ctx.strokeStyle = '#6c757d';
     ctx.setLineDash([5, 3]);
     ctx.beginPath();
-    ctx.moveTo(30, getY(center)); ctx.lineTo(w-10, getY(center));
+    ctx.moveTo(paddingLeft, getY(center)); 
+    ctx.lineTo(w - paddingRight, getY(center));
     ctx.stroke();
     ctx.fillStyle = '#6c757d';
-    ctx.font = '10px Arial';
-    ctx.fillText(mode === "Range" ? "R̄" : "X̿", 10, getY(center) + 3);
+    ctx.fillText(mode === "Range" ? " R̄" : " X̿", w - paddingRight, getY(center));
 
+    // Upper Decision Limit (UDL)
     ctx.strokeStyle = '#dc3545';
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(30, getY(udl)); ctx.lineTo(w-10, getY(udl));
+    ctx.moveTo(paddingLeft, getY(udl)); 
+    ctx.lineTo(w - paddingRight, getY(udl));
     ctx.stroke();
     ctx.fillStyle = '#dc3545';
-    ctx.fillText("UDL", 10, getY(udl) + 3);
+    ctx.fillText(" UDL", w - paddingRight, getY(udl));
 
-    if(mode === "Mean") {
+    // Lower Decision Limit (LDL) for Mean Analysis
+    if (mode === "Mean") {
         ctx.strokeStyle = '#dc3545';
         ctx.beginPath();
-        ctx.moveTo(30, getY(ldl)); ctx.lineTo(w-10, getY(ldl));
+        ctx.moveTo(paddingLeft, getY(ldl)); 
+        ctx.lineTo(w - paddingRight, getY(ldl));
         ctx.stroke();
         ctx.fillStyle = '#dc3545';
-        ctx.fillText("LDL", 10, getY(ldl) + 3);
+        ctx.fillText(" LDL", w - paddingRight, getY(ldl));
     }
 
+    // --- 3. PLOT SERIES TRENDLINE & DATA NODES ---
     ctx.strokeStyle = '#0d6efd';
     ctx.lineWidth = 2;
+    ctx.setLineDash([]);
     ctx.beginPath();
     points.forEach((pt, idx) => {
-        if(idx === 0) ctx.moveTo(getX(idx), getY(pt));
+        if (idx === 0) ctx.moveTo(getX(idx), getY(pt));
         else ctx.lineTo(getX(idx), getY(pt));
     });
     ctx.stroke();
 
+    // Render group points and attach sequential dynamic X labels
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    
     points.forEach((pt, idx) => {
         let isOut = pt > udl || (mode === "Mean" && pt < ldl);
         ctx.fillStyle = isOut ? '#dc3545' : '#0d6efd';
         ctx.beginPath();
-        ctx.arc(getX(idx), getY(pt), isOut ? 5 : 3.5, 0, Math.PI*2);
+        ctx.arc(getX(idx), getY(pt), isOut ? 5 : 3.5, 0, Math.PI * 2);
         ctx.fill();
         
+        // Horizontal group identifiers (G1, G2, etc.) along the floor margin
         ctx.fillStyle = '#212529';
         ctx.font = '9px Arial';
-        ctx.fillText(`G${idx+1}`, getX(idx) - 6, h - 4);
+        ctx.fillText(`G${idx + 1}`, getX(idx), h - paddingBottom + 6);
     });
 }
 
