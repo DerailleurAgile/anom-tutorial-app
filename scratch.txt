@@ -1,0 +1,9 @@
+// Loaded with case study sample data from the article (m=5, n=4)
+let rawData = [
+    [250, 260, 230, 270], // Coating A
+    [310, 330, 280, 360], // Coating B
+    [250, 230, 220, 260], // Coating C
+    [340, 270, 300, 320], // Coating D
+    [250, 240, 270, 290]  // Coating E
+];
+
